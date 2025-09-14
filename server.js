@@ -1,7 +1,8 @@
-// ---------------- Load .env ----------------
-const path = require('path');
-require('dotenv').config({ path: './.env' });
-
+// ---------------- Load .env only locally ----------------
+if (process.env.NODE_ENV !== "production") {
+    const path = require('path');
+    require('dotenv').config({ path: path.resolve(__dirname, '.env') });
+}
 
 const express = require('express');
 const axios = require('axios');
@@ -17,13 +18,15 @@ const PORT = process.env.PORT || 3000;
 console.log('VOICE_ID:', process.env.VOICE_ID);
 console.log('API_KEY:', process.env.ELEVENLABS_API_KEY);
 
-
+// Use environment variables
 const voiceId = process.env.VOICE_ID;
 const apiKey = process.env.ELEVENLABS_API_KEY;
 
 if (!voiceId || !apiKey) {
-    console.error("❌ API Key or Voice ID missing! Check your .env file.");
-    process.exit(1); // stop server if not set
+    console.error("❌ API Key or Voice ID missing! Check your environment variables.");
+    if (process.env.NODE_ENV === "production") {
+        process.exit(1); // stop server on Render if missing
+    }
 }
 
 // ---------------- Root route for sanity check ----------------
