@@ -63,6 +63,7 @@ app.post('/api/gemini-voice', async (req, res) => {
         const assistantText = textResponse.response.text();
 
         // 2. Get an audio response from the Gemini TTS model
+        // CORRECTED: The content is now correctly configured to request AUDIO
         const audioResponse = await ttsModel.generateContent({
             contents: [{ parts: [{ text: assistantText }] }],
             generationConfig: {
