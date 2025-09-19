@@ -53,11 +53,13 @@ app.post('/api/gemini-voice', async (req, res) => {
         console.log("Gemini request received:", userPrompt);
 
         // 1. Get a text response from the Gemini Flash model
-        const textResponse = await flashModel.generateContent(userPrompt);
+        // CORRECTED: The content is now wrapped in the expected object format
+        const textResponse = await flashModel.generateContent({ contents: [{ parts: [{ text: userPrompt }] }] });
         const assistantText = textResponse.response.text();
 
         // 2. Get an audio response from the Gemini TTS model
-        const audioResponse = await ttsModel.generateContent({ text: assistantText }, {
+        // CORRECTED: The content is also wrapped in the expected object format
+        const audioResponse = await ttsModel.generateContent({ contents: [{ parts: [{ text: assistantText }] }] }, {
             response_modalities: ['AUDIO'],
         });
         
