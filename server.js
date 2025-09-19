@@ -39,7 +39,6 @@ const genAI = new GoogleGenerativeAI(geminiApiKey);
 // Using Gemini 2.5 Flash for the conversational part
 const flashModel = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
 // Using the TTS model for voice output
-// CORRECTED MODEL NAME
 const ttsModel = genAI.getGenerativeModel({ model: "gemini-2.5-flash-preview-tts" });
 
 // ---------------- Root route for sanity check ----------------
@@ -60,14 +59,15 @@ app.post('/api/gemini-voice', async (req, res) => {
         console.log("Gemini request received:", userPrompt);
 
         // 1. Get a text response from the Gemini Flash model
-        // CORRECTED: The content is now wrapped in the expected object format
         const textResponse = await flashModel.generateContent({ contents: [{ parts: [{ text: userPrompt }] }] });
         const assistantText = textResponse.response.text();
 
         // 2. Get an audio response from the Gemini TTS model
-        // CORRECTED: The content is also wrapped in the expected object format
-        const audioResponse = await ttsModel.generateContent({ contents: [{ parts: [{ text: assistantText }] }] }, {
-            response_modalities: ['AUDIO'],
+        const audioResponse = await ttsModel.generateContent({
+            contents: [{ parts: [{ text: assistantText }] }],
+            generationConfig: {
+                response_modalities: ['AUDIO'],
+            },
         });
         
         // 3. Send the audio data back to your Unity app
