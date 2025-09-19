@@ -5,74 +5,70 @@ if (process.env.NODE_ENV !== "production") {
 }
 
 const express = require('express');
-const axios = require('axios');
+const { GoogleGenerativeAI } = require('@google/generative-ai');
+const cors = require('cors'); // You'll need this for cross-origin requests from Unity
 const dns = require('dns');
 
-// Force IPv4 to avoid network issues
+// Force IPv4 to avoid network issues, which can sometimes occur on hosting platforms
 dns.setDefaultResultOrder('ipv4first');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// ---------------- Debug: Check if env variables are loaded ----------------
-console.log('VOICE_ID:', process.env.VOICE_ID);
-console.log('API_KEY:', process.env.ELEVENLABS_API_KEY);
+app.use(express.json());
+app.use(cors());
 
-// Use environment variables
-const voiceId = process.env.VOICE_ID;
-const apiKey = process.env.ELEVENLABS_API_KEY;
+// --- Gemini API Integration ---
+// Access the Gemini API key from environment variables
+const geminiApiKey = process.env.GEMINI_API_KEY; 
 
-if (!voiceId || !apiKey) {
-    console.error("❌ API Key or Voice ID missing! Check your environment variables.");
+if (!geminiApiKey) {
+    console.error("❌ GEMINI_API_KEY is not set. Check your environment variables.");
     if (process.env.NODE_ENV === "production") {
         process.exit(1); // stop server on Render if missing
     }
 }
 
+const genAI = new GoogleGenerativeAI(geminiApiKey);
+// Using Gemini 2.5 Flash for the conversational part
+const flashModel = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
+// Using the TTS model for voice output
+const ttsModel = genAI.getGenerativeModel({ model: "gemini-2.5-flash-preview-tts" });
+
 // ---------------- Root route for sanity check ----------------
+// This route now also confirms that the Gemini models are configured
 app.get("/", (req, res) => {
-    res.send("✅ Anshu Backend running. Use /speak?text=YOUR_TEXT to generate voice.");
+    res.send("✅ Anshu Backend running. Gemini models are ready.");
 });
 
-// ---------------- Text-to-Speech endpoint ----------------
-app.get("/speak", async (req, res) => {
+// ---------------- Text-to-Speech endpoint using Gemini ----------------
+// This is the new endpoint that your Unity app will call
+app.post('/api/gemini-voice', async (req, res) => {
     try {
-        const text = req.query.text;
-        if (!text) return res.status(400).json({ error: "No text provided" });
-
-        console.log("TTS request received:", text);
-
-        // Request ElevenLabs TTS
-        const response = await axios({
-            method: 'post',
-            url: `https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`,
-            data: { text, model_id: "eleven_multilingual_v2" },
-            headers: {
-                "xi-api-key": apiKey,
-                "Content-Type": "application/json",
-                "Accept": "audio/mpeg",
-            },
-            responseType: 'arraybuffer' // buffer audio for Unity
-        });
-
-        // Set headers for Unity audio playback
-        res.setHeader("Content-Type", "audio/mpeg");
-        res.setHeader("Cache-Control", "no-cache");
-
-        // Send audio directly
-        res.send(Buffer.from(response.data, 'binary'));
-
-    } catch (err) {
-        if (err.response) {
-            console.error("ElevenLabs error data:", err.response.data);
-            console.error("ElevenLabs status:", err.response.status);
-        } else {
-            console.error("Other error:", err.message);
+        const userPrompt = req.body.prompt;
+        if (!userPrompt) {
+            return res.status(400).send({ error: "Missing 'prompt' in request body." });
         }
-        res.status(500).json({
-            error: "Failed to generate speech",
-            details: err.response ? err.response.data : err.message
+        
+        console.log("Gemini request received:", userPrompt);
+
+        // 1. Get a text response from the Gemini Flash model
+        const textResponse = await flashModel.generateContent(userPrompt);
+        const assistantText = textResponse.response.text();
+
+        // 2. Get an audio response from the Gemini TTS model
+        const audioResponse = await ttsModel.generateContent({ text: assistantText }, {
+            response_modalities: ['AUDIO'],
         });
+        
+        // 3. Send the audio data back to your Unity app
+        const audioData = audioResponse.candidates[0].parts[0].inline_data.data;
+        res.setHeader('Content-Type', 'audio/mpeg');
+        res.send(audioData);
+
+    } catch (error) {
+        console.error('API call failed:', error);
+        res.status(500).send({ error: 'Failed to process request.' });
     }
 });
 
