@@ -39,7 +39,8 @@ const genAI = new GoogleGenerativeAI(geminiApiKey);
 // Using Gemini 2.5 Flash for the conversational part
 const flashModel = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
 // Using the TTS model for voice output
-const ttsModel = genAI.getGenerativeModel({ model: "gemini-2.5-preview-tts" }); // Corrected model name
+// CORRECTED MODEL NAME
+const ttsModel = genAI.getGenerativeModel({ model: "gemini-2.5-flash-preview-tts" });
 
 // ---------------- Root route for sanity check ----------------
 // This route now also confirms that the Gemini models are configured
