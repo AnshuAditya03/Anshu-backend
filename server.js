@@ -23,17 +23,23 @@ app.use(cors());
 const geminiApiKey = process.env.GEMINI_API_KEY; 
 
 if (!geminiApiKey) {
-    console.error("❌ GEMINI_API_KEY is not set. Check your environment variables.");
+    console.error("❌ GEMINI_API_KEY is not set. The server will not run.");
     if (process.env.NODE_ENV === "production") {
-        process.exit(1); // stop server on Render if missing
+        // Exit the process with an error code to make Render report the failure
+        console.error("Exiting due to missing API key in production environment.");
+        process.exit(1); 
     }
+} else {
+    // Log a partial key to confirm it's loaded without exposing the full secret
+    console.log("✅ Gemini API key loaded. Key starts with:", geminiApiKey.substring(0, 5));
+    console.log("✅ Server PORT is set to:", PORT);
 }
 
 const genAI = new GoogleGenerativeAI(geminiApiKey);
 // Using Gemini 2.5 Flash for the conversational part
 const flashModel = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
 // Using the TTS model for voice output
-const ttsModel = genAI.getGenerativeModel({ model: "gemini-2.5-flash-preview-tts" });
+const ttsModel = genAI.getGenerativeModel({ model: "gemini-2.5-preview-tts" }); // Corrected model name
 
 // ---------------- Root route for sanity check ----------------
 // This route now also confirms that the Gemini models are configured
