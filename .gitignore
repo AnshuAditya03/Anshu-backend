@@ -3,6 +3,9 @@ node_modules/
 
 # Environment variables
 .env
+neurasphere.json
+credentials/
+echo "*.mp3" >> .gitignore
 
 # Logs
 *.log
