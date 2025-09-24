@@ -46,7 +46,7 @@ app.post("/speak", async (req, res) => {
         }
 
         // Step 1: Get a text response from Gemini
-        const model = genAI.getGenerativeModel({ model: "gemini-pro" }); // "gemini-pro" is a valid model
+        const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash-latest" }); // "gemini-pro" is a valid model
         const result = await model.generateContent(text);
         const geminiTextResponse = result.response.text();
 
