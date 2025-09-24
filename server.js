@@ -1,5 +1,6 @@
 import express from 'express';
 import { GoogleGenerativeAI } from '@google/generative-ai';
+import { TextToSpeechClient } from '@google-cloud/text-to-speech'; // Import the Google Cloud TTS client
 import cors from 'cors';
 import dotenv from 'dotenv';
 import path from 'path';
@@ -20,7 +21,7 @@ app.use(express.json());
 
 const PORT = process.env.PORT || 3000;
 
-// ---------------- Init Gemini Client ----------------
+// ---------------- Init Clients ----------------
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 
 if (!GEMINI_API_KEY) {
@@ -29,33 +30,47 @@ if (!GEMINI_API_KEY) {
 }
 
 const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
+const ttsClient = new TextToSpeechClient(); // Initialize the TTS client
 
 // ---------------- Root route ----------------
 app.get("/", (req, res) => {
-    res.send("✅ Anshu Backend running. Use POST /speak with JSON { text: '...' }");
+    res.send("✅ Anshu backend running. Use POST /speak with JSON { text: '...' }");
 });
 
 // ---------------- Text-to-Speech endpoint ----------------
 app.post("/speak", async (req, res) => {
     try {
         const { text } = req.body;
-        if (!text) return res.status(400).json({ error: "No text provided" });
+        if (!text) {
+            return res.status(400).json({ error: "No text provided" });
+        }
 
-        const model = genAI.getGenerativeModel({
-            model: "gemini-2.0-flash",
-            generationConfig: {
-                audioConfig: { voice: "Puck" }
-            }
+        // Step 1: Get a text response from Gemini
+        const model = genAI.getGenerativeModel({ model: "gemini-pro" }); // "gemini-pro" is a valid model
+        const result = await model.generateContent(text);
+        const geminiTextResponse = result.response.text();
+
+        if (!geminiTextResponse) {
+            return res.status(500).json({ error: "Gemini did not provide a response" });
+        }
+
+        // Step 2: Use the Google Cloud TTS client to synthesize the audio
+        const [ttsResponse] = await ttsClient.synthesizeSpeech({
+            input: { text: geminiTextResponse },
+            voice: { languageCode: 'en-US', ssmlGender: 'NEUTRAL' },
+            audioConfig: { audioEncoding: 'MP3' },
         });
 
-        const result = await model.generateContent(text);
-        const audioData = result.response.candidates[0].content[0].audio.data;
-
-        res.json({ audio: audioData });
+        // Step 3: Send the audio back to the client
+        res.set("Content-Type", "audio/mpeg");
+        res.send(ttsResponse.audioContent);
 
     } catch (err) {
-        console.error("Gemini error:", err.message || err);
-        res.status(500).json({ error: "Failed to generate speech", details: err.message });
+        console.error("API error:", err.message || err);
+        res.status(500).json({
+            error: "Failed to generate speech",
+            details: err.message
+        });
     }
 });
 
