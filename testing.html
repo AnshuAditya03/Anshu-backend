@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Anshu AI Chat</title>
+    <style>
+        body {
+            font-family: sans-serif;
+            text-align: center;
+            padding-top: 50px;
+        }
+        button {
+            padding: 10px 20px;
+            font-size: 16px;
+            margin: 5px;
+            cursor: pointer;
+        }
+        #stopButton {
+            display: none;
+        }
+        #fileContainer {
+            margin-top: 20px;
+            padding: 10px;
+            border: 1px solid #ccc;
+            display: inline-block;
+        }
+    </style>
+</head>
+<body>
+    <h1>Talk to Anshu AI</h1>
+    <div>
+        <!-- Live Recording Controls -->
+        <button id="startButton">Start Recording</button>
+        <button id="stopButton">Stop Recording</button>
+    </div>
+
+    <!-- File Upload Controls -->
+    <div id="fileContainer">
+        <h3>Or upload an audio file</h3>
+        <input type="file" id="audioFile" accept="audio/*">
+        <button id="uploadButton">Upload File</button>
+    </div>
+
+    <p id="status">Press start to record, or choose a file to upload.</p>
+    <audio id="audioPlayback" controls autoplay></audio>
+
+    <script src="app.js"></script>
+</body>
+</html>

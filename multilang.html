@@ -1,0 +1,319 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Anshu Multilingual AI Chat</title>
+    <!-- Load Tailwind CSS for modern styling -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { font-family: 'Inter', sans-serif; background-color: #f7f9fb; }
+        .btn-primary {
+            transition: all 0.15s ease-in-out;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+        .btn-primary:hover {
+            box-shadow: 0 6px 10px rgba(0, 0, 0, 0.15);
+            transform: translateY(-1px);
+        }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col items-center justify-center p-4">
+
+    <!-- Main Card Container -->
+    <div class="bg-white p-6 md:p-10 rounded-xl shadow-2xl max-w-lg w-full">
+        <h1 class="text-3xl font-bold text-gray-800 mb-6">Talk to Anshu AI</h1>
+
+        <!-- Language Selection -->
+        <div class="mb-6 text-left">
+            <label for="languageSelect" class="block text-sm font-medium text-gray-700 mb-1">
+                🗣️ AI Response Language:
+            </label>
+            <select id="languageSelect" class="w-full p-3 border border-gray-300 rounded-lg shadow-inner focus:ring-indigo-500 focus:border-indigo-500">
+                <!-- Options will be populated by JavaScript -->
+            </select>
+        </div>
+
+        <p id="status" class="text-sm text-gray-600 mb-6 p-3 bg-blue-50 rounded-lg border border-blue-200">
+            Select your desired output language and start recording.
+        </p>
+
+        <!-- Live Recording Controls -->
+        <div class="flex flex-col space-y-3 mb-8">
+            <button id="startButton" class="btn-primary bg-indigo-600 text-white p-3 rounded-xl hover:bg-indigo-700 font-semibold">
+                Start Recording
+            </button>
+            <button id="stopButton" class="btn-primary bg-red-500 text-white p-3 rounded-xl hover:bg-red-600 font-semibold" style="display: none;">
+                Stop Recording
+            </button>
+        </div>
+
+        <!-- File Upload Controls -->
+        <div id="fileContainer" class="border-t border-gray-200 pt-6">
+            <h3 class="text-lg font-semibold text-gray-700 mb-3">Or Upload an Audio File</h3>
+            <div class="flex flex-col space-y-3">
+                <input type="file" id="audioFile" accept="audio/*" class="w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-gray-100 file:text-indigo-700 hover:file:bg-gray-200 cursor-pointer">
+                <button id="uploadButton" class="btn-primary bg-gray-500 text-white p-3 rounded-xl hover:bg-gray-600 font-semibold">
+                    Upload File
+                </button>
+            </div>
+        </div>
+        
+        <!-- Audio Playback -->
+        <div class="mt-8">
+            <h3 class="text-lg font-semibold text-gray-700 mb-3">AI Response:</h3>
+            <audio id="audioPlayback" controls class="w-full h-10 bg-gray-100 rounded-lg" style="display: none;"></audio>
+        </div>
+    </div>
+
+
+    <script>
+        // --- 1. UI Element Declarations ---
+        const startButton = document.getElementById('startButton');
+        const stopButton = document.getElementById('stopButton');
+        const uploadButton = document.getElementById('uploadButton');
+        const audioFileInput = document.getElementById('audioFile');
+        const statusText = document.getElementById('status');
+        const audioPlayback = document.getElementById('audioPlayback');
+        const languageSelect = document.getElementById('languageSelect');
+
+        let mediaRecorder;
+        let audioChunks = [];
+        
+        // --- Supported Languages (Updated with Telugu, Malayalam, Kannada) ---
+        const SUPPORTED_LANGUAGES = [
+            { code: 'en', name: 'English (US)' },
+            { code: 'es', name: 'Spanish (Spain)' },
+            { code: 'fr', name: 'French (France)' },
+            { code: 'de', name: 'German (Germany)' },
+            { code: 'ja', name: 'Japanese (Japan)' },
+            { code: 'ru', name: 'Russian (Russia)' },
+            { code: 'hi', name: 'Hindi (India)' },
+            { code: 'ta', name: 'Tamil (India)' },
+            { code: 'te', name: 'Telugu (India)' }, // <-- NEW
+            { code: 'ml', name: 'Malayalam (India)' }, // <-- NEW
+            { code: 'kn', name: 'Kannada (India)' }, // <-- NEW
+        ];
+
+        // --- Initialization: Populate Language Dropdown ---
+        function initializeUI() {
+            SUPPORTED_LANGUAGES.forEach(lang => {
+                const option = document.createElement('option');
+                option.value = lang.code;
+                option.textContent = lang.name;
+                languageSelect.appendChild(option);
+            });
+            // Select English by default
+            languageSelect.value = 'en'; 
+            statusText.textContent = "Select your desired output language and start recording.";
+        }
+
+        // --- 2. WAV Conversion Utilities (Required for backend compatibility) ---
+        function setUint32(view, offset, data) {
+            view.setUint32(offset, data, true);
+        }
+
+        function setUint16(view, offset, data) {
+            view.setUint16(offset, data, true);
+        }
+
+        function convertBlobToWav(blob) {
+            return new Promise((resolve) => {
+                const audioContext = new AudioContext();
+                const reader = new FileReader();
+                reader.onload = (event) => {
+                    audioContext.decodeAudioData(event.target.result).then(audioBuffer => {
+                        const wavBlob = bufferToWav(audioBuffer);
+                        resolve(wavBlob);
+                    });
+                };
+                reader.readAsArrayBuffer(blob);
+            });
+        }
+
+        function bufferToWav(abuffer) {
+            const numOfChan = abuffer.numberOfChannels;
+            const length = abuffer.length * numOfChan * 2 + 44;
+            const buffer = new ArrayBuffer(length);
+            const view = new DataView(buffer);
+            const channels = [];
+            let offset = 0;
+            let pos = 0;
+
+            // write WAVE header
+            setUint32(view, offset, 0x46464952);      // "RIFF"
+            offset += 4;
+            setUint32(view, offset, length - 8);      // file length - 8
+            offset += 4;
+            setUint32(view, offset, 0x45564157);      // "WAVE"
+            offset += 4;
+
+            setUint32(view, offset, 0x20746d66);      // "fmt " chunk
+            offset += 4;
+            setUint32(view, offset, 16);              // length = 16
+            offset += 4;
+            setUint16(view, offset, 1);               // PCM (uncompressed)
+            offset += 2;
+            setUint16(view, offset, numOfChan);
+            offset += 2;
+            setUint32(view, offset, abuffer.sampleRate);
+            offset += 4;
+            setUint32(view, offset, abuffer.sampleRate * numOfChan * 2); // avg. bytes/sec
+            offset += 4;
+            setUint16(view, offset, numOfChan * 2);       // block-align
+            offset += 2;
+            setUint16(view, offset, 16);              // 16-bit
+            offset += 2;
+            setUint32(view, offset, 0x61746164);      // "data" chunk
+            offset += 4;
+            setUint32(view, offset, length - offset - 4);     // chunk length
+            offset += 4;
+
+            // write interleaved samples
+            for (let i = 0; i < abuffer.numberOfChannels; i++) {
+                channels.push(abuffer.getChannelData(i));
+            }
+            
+            while(pos < abuffer.length) {
+                for (let i = 0; i < numOfChan; i++) {
+                    let sample = Math.max(-1, Math.min(1, channels[i][pos]));
+                    sample = (sample < 0 ? sample * 0x8000 : sample * 0x7FFF) | 0;
+                    view.setInt16(offset, sample, true);
+                    offset += 2;
+                }
+                pos++;
+            }
+
+            return new Blob([buffer], { type: 'audio/wav' });
+        }
+
+
+        // --- 3. Core Logic Functions ---
+        
+        async function startRecording() {
+            try {
+                // Hide any previous audio
+                audioPlayback.src = '';
+                audioPlayback.style.display = 'none';
+
+                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                mediaRecorder = new MediaRecorder(stream); 
+                audioChunks = [];
+
+                mediaRecorder.ondataavailable = (event) => {
+                    audioChunks.push(event.data);
+                };
+
+                mediaRecorder.onstop = async () => {
+                    // 1. Create original blob and convert to WAV
+                    const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
+                    const wavBlob = await convertBlobToWav(audioBlob);
+
+                    // 2. Prepare FormData
+                    const formData = new FormData();
+                    formData.append('audio', wavBlob, 'recording.wav');
+                    
+                    // 3. Get language and append it
+                    const targetLangCode = languageSelect.value;
+                    formData.append('targetLangCode', targetLangCode);
+
+                    await sendAudioToBackend(formData);
+
+                    audioChunks = [];
+                    startButton.style.display = 'inline-block';
+                    stopButton.style.display = 'none';
+                };
+
+                mediaRecorder.start();
+                statusText.textContent = "🎙️ Recording in progress... Speak now!";
+                startButton.style.display = 'none';
+                stopButton.style.display = 'inline-block';
+            } catch (err) {
+                console.error('Error accessing microphone:', err);
+                statusText.textContent = "🚫 Error: Microphone access denied. Check console for details.";
+            }
+        }
+
+        function stopRecording() {
+            if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+                mediaRecorder.stop();
+            }
+        }
+
+        async function uploadAudioFile() {
+            const file = audioFileInput.files[0];
+            if (!file) {
+                // We use a custom status message instead of alert()
+                statusText.textContent = "⚠️ Please select an audio file first.";
+                return;
+            }
+            
+            // Hide any previous audio
+            audioPlayback.src = '';
+            audioPlayback.style.display = 'none';
+
+            const formData = new FormData();
+            formData.append('audio', file, file.name);
+
+            // Get language and append it
+            const targetLangCode = languageSelect.value;
+            formData.append('targetLangCode', targetLangCode);
+
+            await sendAudioToBackend(formData);
+        }
+
+        async function sendAudioToBackend(formData) {
+            try {
+                // Ensure buttons are disabled during processing
+                startButton.disabled = true;
+                uploadButton.disabled = true;
+                languageSelect.disabled = true;
+
+                statusText.textContent = "Processing audio and generating response...";
+                
+                // Fetch request to your backend
+                const response = await fetch('http://localhost:3000/transcribe-file', { 
+                    method: 'POST',
+                    body: formData,
+                });
+
+                if (!response.ok) {
+                    let errorDetails = "Unknown error.";
+                    try {
+                        const error = await response.json();
+                        errorDetails = error.details || error.error || errorDetails;
+                    } catch {
+                        errorDetails = response.statusText;
+                    }
+                    throw new Error(`Server returned error ${response.status}: ${errorDetails}`);
+                }
+
+                const audioData = await response.blob();
+                const audioUrl = URL.createObjectURL(audioData);
+                
+                audioPlayback.src = audioUrl;
+                audioPlayback.style.display = 'block';
+                audioPlayback.play();
+                statusText.textContent = `✅ AI response generated and speaking in ${languageSelect.options[languageSelect.selectedIndex].text}.`;
+
+            } catch (err) {
+                console.error("Error sending audio to backend:", err);
+                statusText.textContent = `🚫 An error occurred: ${err.message}. Check console.`;
+            } finally {
+                // Re-enable buttons
+                startButton.disabled = false;
+                uploadButton.disabled = false;
+                languageSelect.disabled = false;
+            }
+        }
+
+        // --- 4. Event Listeners and Initialization ---
+        startButton.addEventListener('click', startRecording);
+        stopButton.addEventListener('click', stopRecording);
+        uploadButton.addEventListener('click', uploadAudioFile);
+
+        // Run initialization function on load
+        window.onload = initializeUI;
+    </script>
+</body>
+</html>
