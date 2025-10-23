@@ -94,8 +94,8 @@
         const transcriptionDisplay = document.getElementById('transcriptionDisplay');
         const assistantResponseDisplay = document.getElementById('assistantResponseDisplay');
 
-        // ⭐ RENDER URL FIX: Use your deployed domain here
-        const BACKEND_URL = 'https://anshu-backend-vxdp.onrender.com';
+        // ⭐ DEPLOYMENT FIX: Set URL to empty string for relative path (to work on Render)
+        const BACKEND_URL = ''; 
 
 
         let mediaRecorder;
@@ -297,7 +297,7 @@
 
                 statusText.textContent = "Processing audio and generating response...";
                 
-                // ⭐ URL FIX APPLIED HERE
+                // ⭐ URL FIX APPLIED HERE: Uses relative path to hit the same Render server
                 const response = await fetch(`${BACKEND_URL}/transcribe-file`, { 
                     method: 'POST',
                     body: formData,
