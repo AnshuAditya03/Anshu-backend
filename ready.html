@@ -94,6 +94,9 @@
         const transcriptionDisplay = document.getElementById('transcriptionDisplay');
         const assistantResponseDisplay = document.getElementById('assistantResponseDisplay');
 
+        // ⭐ RENDER URL FIX: Use your deployed domain here
+        const BACKEND_URL = 'https://anshu-backend-vxdp.onrender.com';
+
 
         let mediaRecorder;
         let audioChunks = [];
@@ -294,13 +297,15 @@
 
                 statusText.textContent = "Processing audio and generating response...";
                 
-                const response = await fetch('http://localhost:3000/transcribe-file', { 
+                // ⭐ URL FIX APPLIED HERE
+                const response = await fetch(`${BACKEND_URL}/transcribe-file`, { 
                     method: 'POST',
                     body: formData,
                 });
 
                 if (!response.ok) {
                     let errorDetails = "Unknown error.";
+                    // Attempt to parse JSON error response from the server
                     try {
                         const error = await response.json();
                         errorDetails = error.details || error.error || errorDetails;
@@ -310,7 +315,7 @@
                     throw new Error(`Server returned error ${response.status}: ${errorDetails}`);
                 }
 
-                // ⭐ NEW: Parse JSON response
+                // ⭐ Parse JSON response
                 const result = await response.json();
                 
                 const responseText = result.assistantResponse;
@@ -325,7 +330,7 @@
 
 
                 // --- 2. PLAY AUDIO ---
-                // Convert Base64 string back to an Audio Blob
+                // Convert Base64 string back to an Audio Blob and play
                 const audioBlob = await fetch(`data:audio/mp3;base64,${audioBase64}`).then(r => r.blob());
                 const audioUrl = URL.createObjectURL(audioBlob);
                 
@@ -336,7 +341,8 @@
 
             } catch (err) {
                 console.error("Error sending audio to backend:", err);
-                statusText.textContent = `🚫 An error occurred: ${err.message}. Check console.`;
+                // Update status to reflect failure
+                statusText.textContent = `🚫 An error occurred: Failed to fetch. Check console for details.`;
             } finally {
                 // Re-enable controls
                 startButton.disabled = false;
